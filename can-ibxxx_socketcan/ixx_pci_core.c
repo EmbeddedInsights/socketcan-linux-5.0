@@ -235,33 +235,18 @@ void ixxat_dump_mem(char *prompt, void *p, int l)
         DUMP_WIDTH, 1, p, l, false);
 }
 
-static void ixxat_pci_add_us(struct timeval *tv, u64 delta_us)
-{
-        /* number of s. to add to final time */
-        u32 delta_s = div_u64(delta_us, 1000000);
-
-        delta_us -= delta_s * 1000000;
-
-        tv->tv_usec += delta_us;
-        if (tv->tv_usec >= 1000000) {
-                tv->tv_usec -= 1000000;
-                delta_s++;
-        }
-        tv->tv_sec += delta_s;
-}
-
 void ixxat_pci_get_ts_tv(struct ixx_pci_priv *dev, u32 ts, ktime_t *k_time)
 {
-        struct timeval tv = dev->time_ref.tv_host_0;
+        ktime_t tv = dev->time_ref.tv_host_0;
 
         if (ts < dev->time_ref.ts_dev_last) {
                 ixxat_pci_update_ts_now(dev, ts);
         }
 
         dev->time_ref.ts_dev_last = ts;
-        ixxat_pci_add_us(&tv, ts - dev->time_ref.ts_dev_0);
+        tv = ktime_add_us(tv, ts - dev->time_ref.ts_dev_0);
 
-        *k_time = timeval_to_ktime(tv);
+        *k_time = tv;
 }
 
 void ixxat_pci_update_ts_now(struct ixx_pci_priv *dev, u32 hw_time_base)
@@ -270,7 +255,7 @@ void ixxat_pci_update_ts_now(struct ixx_pci_priv *dev, u32 hw_time_base)
 
         timebase = (u64)0x00000000FFFFFFFF - (u64)dev->time_ref.ts_dev_0 + (u64)hw_time_base;
 
-        ixxat_pci_add_us(&dev->time_ref.tv_host_0, timebase);
+        dev->time_ref.tv_host_0 = ktime_add_us(dev->time_ref.tv_host_0, timebase);
 
         dev->time_ref.ts_dev_0 = hw_time_base;
 }
